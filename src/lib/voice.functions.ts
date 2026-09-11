@@ -77,7 +77,7 @@ export const transcribeBusinessVoice = createServerFn({ method: "POST" })
               "You read a spoken introduction from an Indian artisan or small business owner, in any Indian language. " +
               "Extract only what is actually said. Return JSON with keys: name (business name), owner (person name), " +
               "village (gaav), block (tehsil/taluka), district (zila), state, pin (6 digits), " +
-              "category (one of: Textiles, Pottery, Jewellery, Woodwork, Metalwork, Leather, Bamboo & Cane, Painting, Food & Spices, Other), " +
+              "category (exactly one of: Handloom & Textiles, Pottery & Terracotta, Bags & Accessories, Bamboo & Cane, Jewellery, Food & Spices, Wood Craft, Other), " +
               "type (one of: Artisan, Farmer, Manufacturer, Retailer, Service Provider, Other). " +
               "Write place names, business name and owner name in English (Latin) script. Omit any key that was not mentioned. Never invent values.",
           },
