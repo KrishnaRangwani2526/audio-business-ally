@@ -2,6 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { type LucideIcon, ChevronRight, Mic, Square, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useVoiceRecorder } from "@/lib/use-voice-recorder";
+import type { BusinessFields } from "@/lib/voice.functions";
+
 import shawl from "@/assets/shawl.jpg";
 import vase from "@/assets/vase.jpg";
 import bag from "@/assets/bag.jpg";
@@ -276,42 +279,91 @@ export function VoiceButton({
   label = "Speak",
   onResult,
   lang = "hi",
+  extract = false,
 }: {
   label?: string;
-  onResult: (text: string) => void;
+  onResult: (text: string, fields?: BusinessFields) => void;
   lang?: string;
+  /** Also pull out business details (village, district, state, PIN…) from what was said. */
+  extract?: boolean;
 }) {
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { recording, seconds, level, start, stop } = useVoiceRecorder();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
-
-  const start = async () => {
-    setRecording(true);
-    setSeconds(0);
-    timer.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    const { aiService } = await import("@/services/aiService");
-    const text = await aiService.transcribeVoice(lang);
-    if (timer.current) clearInterval(timer.current);
-    setRecording(false);
-    onResult(text);
+  const handleClick = async () => {
+    setError(null);
+    if (!recording) {
+      const ok = await start();
+      if (!ok) setError("Microphone permission is needed. Allow it and tap again.");
+      return;
+    }
+    const clip = await stop();
+    if (!clip) {
+      setError("That was too short. Tap and speak for a few seconds.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { blobToBase64 } = await import("@/lib/use-voice-recorder");
+      const { transcribeBusinessVoice } = await import("@/lib/voice.functions");
+      const result = await transcribeBusinessVoice({
+        data: { audioBase64: await blobToBase64(clip), lang, extract },
+      });
+      if (!result.text) {
+        setError("We could not hear any words. Please try again.");
+      } else {
+        onResult(result.text, result.fields);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Voice failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <button
-      type="button"
-      onClick={recording ? undefined : start}
-      className={cn(
-        "flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 text-[15px] font-semibold transition-all active:scale-[0.98]",
-        recording ? "bg-accent text-accent-foreground" : "bg-surface-2 text-foreground ring-1 ring-line",
-      )}
-    >
-      {recording ? <Square className="size-4 animate-pulse" /> : <Mic className="size-[18px]" />}
-      {recording ? `Listening… ${seconds}s` : label}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={busy ? undefined : handleClick}
+        aria-live="polite"
+        className={cn(
+          "flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 text-[15px] font-semibold transition-all active:scale-[0.98]",
+          recording
+            ? "bg-accent text-accent-foreground"
+            : "bg-surface-2 text-foreground ring-1 ring-line",
+          busy && "opacity-70",
+        )}
+      >
+        {busy ? (
+          <>
+            <Sparkles className="size-4 animate-pulse" /> Writing your words…
+          </>
+        ) : recording ? (
+          <>
+            <Square className="size-4" />
+            Listening… {seconds}s — tap to stop
+          </>
+        ) : (
+          <>
+            <Mic className="size-[18px]" /> {label}
+          </>
+        )}
+      </button>
+      {recording ? (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+          <div
+            className="h-full rounded-full bg-accent transition-[width] duration-100"
+            style={{ width: `${Math.min(100, Math.round(level * 260))}%` }}
+          />
+        </div>
+      ) : null}
+      {error ? <p className="text-[12px] font-semibold text-destructive">{error}</p> : null}
+    </div>
   );
 }
+
 
 export function AiInsight({
   title,
