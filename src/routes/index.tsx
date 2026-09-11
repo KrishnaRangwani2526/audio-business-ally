@@ -46,6 +46,8 @@ function Onboarding() {
   const [biz, setBiz] = useState(state.business);
   const [goals, setGoals] = useState<string[]>(state.business.goals);
   const [firstProduct, setFirstProduct] = useState({ name: "", note: "", photo: false });
+  const [autoFilled, setAutoFilled] = useState<string[]>([]);
+
 
   const set = (patch: Partial<typeof biz>) => setBiz((b) => ({ ...b, ...patch }));
   const bi = (text: string) => <Bilingual text={text} lang={biz.language} />;
@@ -162,12 +164,28 @@ function Onboarding() {
               <VoiceButton
                 label="🎙️ Tell us about your business"
                 lang={biz.language}
-                onResult={(text) => set({ about: text })}
+                extract
+                onResult={(text, fields) => {
+                  const filled = Object.entries(fields ?? {}).filter(([, v]) => v);
+                  set({ about: text, ...Object.fromEntries(filled) });
+                  setAutoFilled(filled.map(([k]) => k));
+                }}
               />
               {biz.about ? (
-                <p className="frost-tile p-3 text-[13px] text-muted-foreground">{biz.about}</p>
+                <div className="frost-tile space-y-2 p-3">
+                  <p className="font-mono text-[10px] font-bold tracking-[0.14em] text-accent uppercase">
+                    You said
+                  </p>
+                  <p className="text-[14px] leading-relaxed text-foreground">{biz.about}</p>
+                  {autoFilled.length ? (
+                    <p className="text-[12px] font-semibold text-good">
+                      Filled from your voice: {autoFilled.join(", ")}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
               <span className="sr-only">{tr(biz.language, "Tell us about your business")}</span>
+
               <Field label={bi("Business name")}>
                 <input className={inputClass} value={biz.name} onChange={(e) => set({ name: e.target.value })} />
               </Field>
