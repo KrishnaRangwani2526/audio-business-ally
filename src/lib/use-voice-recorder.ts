@@ -106,7 +106,7 @@ export function useVoiceRecorder() {
       const input = e.inputBuffer.getChannelData(0);
       chunks.push(new Float32Array(input));
       let peak = 0;
-      for (let i = 0; i < input.length; i += 32) peak = Math.max(peak, Math.abs(input[i]));
+      for (let i = 0; i < input.length; i += 32) peak = Math.max(peak, Math.abs(input[i] ?? 0));
       setLevel(peak);
     };
     source.connect(node);
